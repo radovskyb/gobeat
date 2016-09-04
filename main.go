@@ -39,7 +39,7 @@ func main() {
 	var pidStr = strconv.Itoa(*pid)
 
 	// ps -o comm= -p $PID
-	pidCmd, err := exec.Command("ps", "-o", "command=", pidStr).Output()
+	pidCmd, err := exec.Command("ps", "-o", "comm=", pidStr).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
