@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -40,19 +39,11 @@ func main() {
 	var pidStr = strconv.Itoa(*pid)
 
 	// ps -o comm= -p $PID
-	pidCmd, err := exec.Command("ps", "-o", "comm=", pidStr).Output()
+	pidCmd, err := exec.Command("ps", "-o", "command=", pidStr).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// ps -o pid= -p $PID
-	pidTTYBytes, err := exec.Command("ps", "-o", "tty=", "-p", pidStr).Output()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	pidTTY := strings.TrimSpace(string(pidTTYBytes))
-
-	var c *exec.Cmd
 	errch := make(chan struct{})
 	go func() {
 		for {
@@ -61,14 +52,13 @@ func main() {
 			if *cmd != "" {
 				command := strings.Split(*cmd, " ")
 
-				if len(command) > 1 {
-					c = exec.Command(command[0], command[1:]...)
-				} else {
-					c = exec.Command(command[0])
-				}
+				c := exec.Command(command[0])
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
+				if len(command) > 1 {
+					c.Args = command[1:]
+				}
 				if err := c.Run(); err != nil {
 					log.Fatalln(err)
 				}
@@ -79,21 +69,8 @@ func main() {
 			}
 
 			// Restart the process.
-			c = exec.Command(strings.TrimRight(string(pidCmd), "\n\r"))
-			if string(pidTTY) != "??" {
-				tty, err := os.Open(fmt.Sprintf("/dev/ttys%s", pidTTY))
-				if err != nil {
-					log.Printf("Could not open tty at /dev/%s", pidTTY)
-				}
-				c.Stdin = tty
-				c.Stdout = tty
-				c.Stderr = tty
-			} else {
-				c.Stdin = os.Stdin
-				c.Stdout = os.Stdout
-				c.Stderr = os.Stderr
-			}
-			if err := c.Run(); err != nil {
+			pidCmdStr := strings.Trim(string(pidCmd), "\n\r")
+			if err := exec.Command(pidCmdStr).Run(); err != nil {
 				log.Fatalln(err)
 			}
 		}
