@@ -36,10 +36,9 @@ func main() {
 	}
 
 	// If restart is set to true, find the command that started the process.
-	var pidStr = strconv.Itoa(*pid)
-
+	//
 	// ps -o comm= -p $PID
-	pidCmd, err := exec.Command("ps", "-o", "comm=", pidStr).Output()
+	pidCmd, err := exec.Command("ps", "-o", "comm=", strconv.Itoa(*pid)).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
