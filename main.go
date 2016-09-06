@@ -19,6 +19,7 @@ func main() {
 	interval := flag.Int("interval", 100, "interval for checking the process (milliseconds)")
 	cmd := flag.String("cmd", "", "run a command when the process terminates")
 	restart := flag.Bool("restart", true, "restart the process on termination")
+	detach := flag.Bool("detach", true, "detach the restarted process group")
 
 	flag.Parse()
 
@@ -121,8 +122,8 @@ func main() {
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 
-			// Detach the process, so it doesn't exit when main exits.
-			c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+			// Start the process in a different process group.
+			c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
 
 			if err := c.Run(); err != nil {
 				log.Fatalln(err)
