@@ -63,12 +63,11 @@ func main() {
 
 	// Find folder of running process.
 	//
-	// lsof -a -d cwd -p $PID | awk '$4=="cwd" {print $9}'
+	// lsof -p $PID | awk '$4=="cwd" {print $9}'
 	output, err := exec.Command("lsof", "-p", pidIntStr).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
-
 	c := exec.Command("awk", "$4==\"cwd\" {print $9}")
 	c.Stdin = bytes.NewReader(output)
 	c.Stderr = os.Stderr
