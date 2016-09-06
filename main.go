@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 )
 
 func main() {
@@ -35,13 +38,47 @@ func main() {
 		log.Fatalln("process is not running")
 	}
 
+	pidIntStr := strconv.Itoa(*pid)
+
 	// If restart is set to true, find the command that started the process.
 	//
 	// ps -o comm= -p $PID
-	pidCmd, err := exec.Command("ps", "-o", "comm=", strconv.Itoa(*pid)).Output()
+	pidCmd, err := exec.Command("ps", "-o", "comm=", pidIntStr).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	pidCmdStr := strings.Trim(string(pidCmd), "\n\r")
+
+	// Extract args. Example vim main.go
+	//
+	// Get the ps command= string result.
+	pidCommandEq, err := exec.Command("ps", "-o", "command=", pidIntStr).Output()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	split := strings.SplitAfter(string(pidCommandEq), string(pidCmdStr))
+	args := strings.FieldsFunc(split[1], unicode.IsSpace)
+
+	// Find folder of running process.
+	//
+	// lsof -a -d cwd -p $PID | awk '$4=="cwd" {print $9}'
+	output, err := exec.Command("lsof", "-p", pidIntStr).Output()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	c := exec.Command("awk", "$4==\"cwd\" {print $9}")
+	c.Stdin = bytes.NewReader(output)
+	c.Stderr = os.Stderr
+	folderName, err := c.Output()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	folderNameStr := strings.Trim(string(folderName), "\n\r")
+
+	fmt.Printf("Folder: %s, Command: %s, Args: %v", folderNameStr, strings.Trim(string(pidCmd), "\n\r"), args)
 
 	errch := make(chan struct{})
 	go func() {
@@ -52,12 +89,15 @@ func main() {
 				command := strings.Split(*cmd, " ")
 
 				c := exec.Command(command[0])
+
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
+
 				if len(command) > 1 {
 					c.Args = command[1:]
 				}
+
 				if err := c.Run(); err != nil {
 					log.Fatalln(err)
 				}
@@ -67,9 +107,23 @@ func main() {
 				os.Exit(0)
 			}
 
+			// Change into the working directory where the process was called.
+			if err := os.Chdir(folderNameStr); err != nil {
+				// If the folder DOES exist, report the error, otherwise,
+				// just run the process from the current folder if possible.
+				if os.IsExist(err) {
+					log.Fatalln(err)
+				}
+			}
+
 			// Restart the process.
-			pidCmdStr := strings.Trim(string(pidCmd), "\n\r")
-			if err := exec.Command(pidCmdStr).Run(); err != nil {
+			c := exec.Command(pidCmdStr, args...)
+
+			c.Stdin = os.Stdin
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+
+			if err := c.Run(); err != nil {
 				log.Fatalln(err)
 			}
 		}
