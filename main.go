@@ -78,7 +78,8 @@ func main() {
 	}
 	folderNameStr := strings.Trim(string(folderName), "\n\r")
 
-	fmt.Printf("Folder: %s, Command: %s, Args: %v", folderNameStr, strings.Trim(string(pidCmd), "\n\r"), args)
+	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
+		folderNameStr, pidCmdStr, strings.Join(args, ", "))
 
 	errch := make(chan struct{})
 	go func() {
@@ -88,8 +89,7 @@ func main() {
 			if *cmd != "" {
 				command := strings.Split(*cmd, " ")
 
-				c := exec.Command(command[0])
-
+				c = exec.Command(command[0])
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
@@ -117,8 +117,7 @@ func main() {
 			}
 
 			// Restart the process.
-			c := exec.Command(pidCmdStr, args...)
-
+			c = exec.Command(pidCmdStr, args...)
 			c.Stdin = os.Stdin
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
