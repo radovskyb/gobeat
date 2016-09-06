@@ -121,6 +121,9 @@ func main() {
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 
+			// Detach the process, so it doesn't exit when main exits.
+			c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 			if err := c.Run(); err != nil {
 				log.Fatalln(err)
 			}
