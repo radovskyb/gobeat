@@ -29,7 +29,7 @@ the `pid` from the new process and monitoring that process instead, keeping all 
 One of the main things that I find `gobeat` handy for, is for health checking a process running a webserver.
 If the webserver accidently gets killed, `gobeat` automatically restarts the server with whatever command started
 it in the first place with any args it was initially given.
-When restarting the server's process, `gobeat` calls a simple `go run` command, set using the `cmd` flag, 
+When restarting the server's process, I have `gobeat` call a `go run` command, set using the `cmd` flag, 
 that runs a simple `Go` script to send an email notifying me that the server was restarted.
 
 It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps` and `grep`,
