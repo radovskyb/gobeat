@@ -32,7 +32,7 @@ it in the first place with any args it was initially given.
 When restarting the server's process, I have `gobeat` call a `go run` command, set using the `cmd` flag, 
 that runs a simple `Go` script to send an email notifying me that the server was restarted.
 
-It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps` and `grep`,
+It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps`, `grep` and `awk`,
 but it gets the job done for me.
 
 ###### So far only tested on MacOS
