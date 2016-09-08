@@ -4,6 +4,9 @@
 
 ##### Description:
 
+Example usage: `gobeat -pid=1234 -cmd="go run myscript.go"` where 1234 is the `pid` of 
+a process that needs to be monitored.
+
 `gobeat` is started by passing it the mimumum flag it requires to work, a `pid` (process id).
 
 Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default), to regularly `ping` 
