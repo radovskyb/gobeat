@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
@@ -70,8 +71,16 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	var ttyFile *os.File
 	ttyStr := strings.Trim(string(tty), "\n\r ")
 	if ttyStr != "??" {
+		// Open the tty file.
+		ttyFile, err = os.Open("/dev/" + ttyStr)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer ttyFile.Close()
+
 		if os.Getgid() != 0 && os.Getuid() != 0 {
 			log.Fatalln("gobeat needs to run with sudo for restarting this process")
 		}
@@ -96,10 +105,16 @@ func main() {
 	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
 		folderNameStr, pidCmdStr, strings.Join(args, ", "))
 
+	// running hold a 1 or a 0 depending on whether or not the process has completed
+	// it's restart process yet or not.
+	var running int64
+
 	errch := make(chan struct{})
 	go func() {
 		for {
 			<-errch
+
+			atomic.AddInt64(&running, 1)
 
 			if *cmd != "" {
 				command := strings.Split(*cmd, " ")
@@ -137,13 +152,6 @@ func main() {
 			// If process was running in a tty instance send the command
 			// using IOCTL with TIOCSTI system calls.
 			if ttyStr != "??" {
-				// Open the tty file.
-				ttyFile, err := os.Open("/dev/" + ttyStr)
-				if err != nil {
-					log.Fatalln(err)
-				}
-				defer ttyFile.Close()
-
 				// Append a new line character to cmdBytes so the command
 				// actually executes.
 				pidCommandEqNL := append(pidCommandEq, byte('\n'))
@@ -214,16 +222,19 @@ func main() {
 					log.Fatalln(err)
 				}
 			}
+
+			atomic.AddInt64(&running, -1)
 		}
 	}()
 
 	for {
-		// Check if the process is running.
-		err := proc.Signal(syscall.Signal(0))
-		if err != nil {
-			errch <- struct{}{}
+		if atomic.LoadInt64(&running) == 0 {
+			// Check if the process is running.
+			err := proc.Signal(syscall.Signal(0))
+			if err != nil {
+				errch <- struct{}{}
+			}
 		}
-
 		// Sleep for the specified interval.
 		time.Sleep(time.Millisecond * time.Duration(*interval))
 	}
