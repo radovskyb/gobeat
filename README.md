@@ -2,10 +2,10 @@
 
 `gobeat` is a health check monitor, command automation tool and process restarter, for any process with a `pid`.
 
-##### Description:
+#### Example usage: 
+`gobeat -pid=1234 -cmd="go run myscript.go"` where 1234 is the `pid` of a process that needs to be monitored.
 
-Example usage: `gobeat -pid=1234 -cmd="go run myscript.go"` where 1234 is the `pid` of 
-a process that needs to be monitored.
+#### Description:
 
 `gobeat` is started by passing it the mimumum flag it requires to work, a `pid` (process id).
 
@@ -38,5 +38,5 @@ that runs a simple `Go` script to send an email notifying me that the server was
 It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps`, `grep` and `awk`,
 but it gets the job done for me.
 
-###### So far only tested on MacOS
-###### Examples to come eventually
+##### So far only tested on MacOS
+##### Examples to come eventually
