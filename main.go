@@ -71,8 +71,10 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	var ttyFile *os.File
 	ttyStr := strings.Trim(string(tty), "\n\r ")
+
+	var ttyFile *os.File
+
 	if ttyStr != "??" {
 		// Open the tty file.
 		ttyFile, err = os.Open("/dev/" + ttyStr)
@@ -228,6 +230,7 @@ func main() {
 	}()
 
 	for {
+		// Send a signal if no restart is already in progress.
 		if atomic.LoadInt64(&running) == 0 {
 			// Check if the process is running.
 			err := proc.Signal(syscall.Signal(0))
@@ -235,6 +238,7 @@ func main() {
 				errch <- struct{}{}
 			}
 		}
+
 		// Sleep for the specified interval.
 		time.Sleep(time.Millisecond * time.Duration(*interval))
 	}
