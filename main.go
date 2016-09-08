@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unsafe"
 )
 
 func main() {
@@ -62,6 +63,20 @@ func main() {
 	split := strings.SplitAfter(string(pidCommandEq), string(pidCmdStr))
 	args := strings.FieldsFunc(split[1], unicode.IsSpace)
 
+	// Find tty of process if one is available
+	//
+	// ps -o tty= -p $PID
+	tty, err := exec.Command("ps", "-o", "tty=", "-p", pidIntStr).Output()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	ttyStr := strings.Trim(string(tty), "\n\r ")
+	if ttyStr != "??" {
+		if os.Getgid() != 0 && os.Getuid() != 0 {
+			log.Fatalln("gobeat needs to run with sudo for restarting this process")
+		}
+	}
+
 	// Find folder of running process.
 	//
 	// lsof -p $PID | awk '$4=="cwd" {print $9}'
@@ -103,6 +118,7 @@ func main() {
 				}
 			}
 
+			// If restart is not set to true, exit cleanly.
 			if *restart != true {
 				os.Exit(0)
 			}
@@ -117,16 +133,86 @@ func main() {
 			}
 
 			// Restart the process.
-			c = exec.Command(pidCmdStr, args...)
-			c.Stdin = os.Stdin
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
 
-			// Start the process in a different process group.
-			c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
+			// If process was running in a tty instance send the command
+			// using IOCTL with TIOCSTI system calls.
+			if ttyStr != "??" {
+				// Open the tty file.
+				ttyFile, err := os.Open("/dev/" + ttyStr)
+				if err != nil {
+					log.Fatalln(err)
+				}
+				defer ttyFile.Close()
 
-			if err := c.Run(); err != nil {
-				log.Fatalln(err)
+				// Append a new line character to cmdBytes so the command
+				// actually executes.
+				pidCommandEqNL := append(pidCommandEq, byte('\n'))
+
+				// Write each byte from pidCommandEq to the tty instance.
+				var eno syscall.Errno
+				for _, b := range pidCommandEqNL {
+					_, _, eno = syscall.Syscall(syscall.SYS_IOCTL,
+						ttyFile.Fd(),
+						syscall.TIOCSTI,
+						uintptr(unsafe.Pointer(&b)),
+					)
+					if eno != 0 {
+						log.Fatalln(eno)
+					}
+				}
+
+				// Get the new PID of the restarted process.
+				//
+				// ps -e | grep ttys002 | grep 'vim main.go' | awk '{print $1}'
+				psOutput, err := exec.Command("ps", "-e").Output()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				grepCmd1 := exec.Command("grep", ttyStr)
+				grepCmd1.Stdin = bytes.NewReader(psOutput)
+				grepCmd1.Stderr = os.Stderr
+				grepOutput1, err := grepCmd1.Output()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				grepCmd2 := exec.Command("grep", strings.Trim(string(pidCommandEq), "\n\r "))
+				grepCmd2.Stdin = bytes.NewReader(grepOutput1)
+				grepCmd2.Stderr = os.Stderr
+				grepOutput2, err := grepCmd2.Output()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				awkCmd := exec.Command("awk", "{print $1}")
+				awkCmd.Stdin = bytes.NewReader(grepOutput2)
+				awkCmd.Stderr = os.Stderr
+				awkOutput, err := awkCmd.Output()
+				if err != nil {
+					log.Fatalln(err)
+				}
+				pid, err := strconv.Atoi(strings.Trim(string(awkOutput), "\n\r "))
+				if err != nil {
+					log.Fatalln(err)
+				}
+				// Reset proc to the new process found from the new pid.
+				proc, err = os.FindProcess(pid)
+				if err != nil {
+					log.Fatalln(err)
+				}
+			} else {
+				// Create a new command to start the process with.
+				c = exec.Command(pidCmdStr, args...)
+				c.Stdin = os.Stdin
+				c.Stdout = os.Stdout
+				c.Stderr = os.Stderr
+
+				// Start the process in a different process group if detach
+				// is set to true.
+				c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
+
+				// Run the command.
+				if err := c.Run(); err != nil {
+					log.Fatalln(err)
+				}
 			}
 		}
 	}()
