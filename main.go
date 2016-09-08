@@ -17,7 +17,7 @@ import (
 
 func main() {
 	pid := flag.Int("pid", -1, "process pid to follow")
-	interval := flag.Int("interval", 100, "interval for checking the process (milliseconds)")
+	interval := flag.Int("interval", 100, "interval for checking the process in milliseconds")
 	cmd := flag.String("cmd", "", "run a command when the process terminates")
 	restart := flag.Bool("restart", true, "restart the process on termination")
 	detach := flag.Bool("detach", true, "detach the restarted process group")
@@ -104,14 +104,14 @@ func main() {
 			if *cmd != "" {
 				command := strings.Split(*cmd, " ")
 
-				c = exec.Command(command[0])
+				if len(command) > 1 {
+					c = exec.Command(command[0], command[1:]...)
+				} else {
+					c = exec.Command(command[0])
+				}
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
-
-				if len(command) > 1 {
-					c.Args = command[1:]
-				}
 
 				if err := c.Run(); err != nil {
 					log.Fatalln(err)
