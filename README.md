@@ -5,12 +5,13 @@
 #### Example usage: 
 `gobeat -pid=1234 -cmd="go run myscript.go"` where `1234` is the `pid` of a process that needs to be monitored and `myscript.go` is a `Go` file to be executed any time the process from `pid` `1234` is terminated or restarted.
 
+`gobeat -name="subl" -cmd="./myshellscript"` where `subl` is a name of a process to be monitored, that `gobeat` will use to list all processes that contain the name, where the correct process will be chosen from the list and `./myshellscript` is a shell script to be executed any time the process is terminated or restarted.
+
 #### Description:
 
-`gobeat` is started by passing it the mimumum flag it requires to work, a `pid` (process id) found using `ps` in the terminal.
+`gobeat` is started by passing it a minimum flag that it requires to work, either a `pid` (process id) found  using `ps` in the terminal, or a name flag which finds and lists all names from the `ps` command, where the correct process name is chosen from the list.
 
-Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default), to regularly `ping` 
-the process by sending it a unix 0 signal. 
+Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default), to regularly `ping` the process by sending it a unix 0 signal. 
 
 If the process has shutdown or is non-respondant and the `restart` flag is set to true, 
 which is it's default value, `gobeat` automatically restarts the process. If the process that needs to
