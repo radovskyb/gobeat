@@ -71,7 +71,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	pidCmdStr := trimOutput(pidCmd)
+	pidCmdStr := trimOutput(string(pidCmd))
 
 	// Extract args. Example vim main.go
 	//
@@ -94,7 +94,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		ttyStr = trimOutput(tty)
+		ttyStr = trimOutput(string(tty))
 	}
 
 	var ttyFile *os.File
@@ -121,7 +121,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	// Replacement for above awk.
+	// Replaces above awk.
 	var folderName string
 	scanner := bufio.NewScanner(bytes.NewReader(lsofOutput))
 	scanner.Split(bufio.ScanLines)
@@ -132,7 +132,7 @@ func main() {
 		}
 	}
 
-	folderNameStr := trimOutput([]byte(folderName))
+	folderNameStr := trimOutput(folderName)
 	fmt.Println(folderNameStr)
 
 	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
@@ -217,7 +217,7 @@ func main() {
 				if err != nil {
 					log.Fatalln(err)
 				}
-				grep2 := exec.Command("grep", trimOutput(pidCommandEq))
+				grep2 := exec.Command("grep", trimOutput(string(pidCommandEq)))
 				grep2.Stdin, err = grep1.StdoutPipe()
 				if err != nil {
 					log.Fatalln(err)
@@ -231,9 +231,10 @@ func main() {
 				must(grep1.Wait())
 				must(grep2.Wait())
 
+				// Replaces above awk.
 				pidStr := strings.Split(stdout.String(), " ")[0]
 
-				pid, err := strconv.Atoi(trimOutput([]byte(pidStr)))
+				pid, err := strconv.Atoi(trimOutput(pidStr))
 				if err != nil {
 					log.Fatalln(err)
 				}
@@ -320,7 +321,7 @@ func getPidByName(procName string) (string, error) {
 	must(grep2.Wait())
 
 	// Display a list of all the found names.
-	names := strings.Split(trimOutput(stdout.Bytes()), "\n")
+	names := strings.Split(trimOutput(stdout.String()), "\n")
 	for i, name := range names {
 		fmt.Printf("%d: %s\n", i, name)
 	}
@@ -356,12 +357,12 @@ func getPidByName(procName string) (string, error) {
 	must(grep1.Wait())
 	must(grep2.Wait())
 
-	// Return the pid string.
-	return trimOutput([]byte(strings.Split(stdout.String(), " ")[0])), nil
+	// Return the pid string (Replaces above awk).
+	return trimOutput(strings.Split(stdout.String(), " ")[0]), nil
 }
 
-func trimOutput(output []byte) string {
-	return strings.Trim(string(output), "\n\r ")
+func trimOutput(output string) string {
+	return strings.Trim(output, "\n\r ")
 }
 
 func must(err error) {
