@@ -99,18 +99,13 @@ func main() {
 		// Open the tty file.
 		ttyFile, err = os.Open("/dev/" + ttyStr)
 
-		// If the tty file opened successfully, check for sudo privileges
-		// and defer to close ttyFile's.
-		if err == nil {
-			if os.Getgid() != 0 && os.Getuid() != 0 {
-				log.Fatalln("gobeat needs to run with sudo for restarting this process")
-			}
-			defer ttyFile.Close()
-		} else {
+		// Check for sudo privileges and any errors.
+		if err != nil || (os.Getuid() != 0 && os.Getgid() != 0) {
 			// If we can't open /dev/{ttyStr}, continue as if it's
 			// a regular application not in a tty.
 			ttyStr = "??"
 		}
+		defer ttyFile.Close()
 	}
 
 	// Find folder of running process.

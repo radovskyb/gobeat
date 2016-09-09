@@ -18,7 +18,8 @@ Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default
 If the process has shutdown or is non-respondant and the `restart` flag is set to true, 
 which is it's default value, `gobeat` automatically restarts the process. If the process that needs to
 be restarted, was instantiated in a terminal window such as `/dev/ttys001`, `gobeat` automatically restarts
-the process in the same window it originated in.
+the process in the same window it originated in. `gobeat` must be started with `sudo` to restart an application
+in the correct `tty` window, otherwise it just restarts as a normal application attached to `gobeats` process.
 
 For processes not started from a terminal, for example, such as a text editor like `Sublime Text`,
 `gobeat` will simply restart the application. The `detach` flag specifes whether or not a regular application 
