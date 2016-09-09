@@ -7,7 +7,7 @@
 
 #### Description:
 
-`gobeat` is started by passing it the mimumum flag it requires to work, a `pid` (process id).
+`gobeat` is started by passing it the mimumum flag it requires to work, a `pid` (process id) found using `ps` in the terminal.
 
 Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default), to regularly `ping` 
 the process by sending it a unix 0 signal. 
