@@ -1,5 +1,7 @@
 # gobeat
 
+##### So far only tested on MacOS
+
 `gobeat` is a health check monitor, command automation tool and process restarter, for any process found by name or pid.
 
 #### Example usage: 
@@ -38,6 +40,3 @@ that runs a simple `Go` script to send an email notifying me that the server was
 
 It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps`, `grep` and `awk`,
 but it gets the job done for me.
-
-##### So far only tested on MacOS
-##### Examples to come eventually
