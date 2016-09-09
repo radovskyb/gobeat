@@ -5,7 +5,7 @@
 #### Example usage: 
 `gobeat -pid=1234 -cmd="go run myscript.go"` where `1234` is the `pid` of a process that needs to be monitored and `myscript.go` is a `Go` file to be executed any time the process from `pid` `1234` is terminated or restarted.
 
-`gobeat -name="subl" -cmd="./myshellscript"` where `subl` is a name of a process to be monitored, that `gobeat` will use to list all processes that contain the name, where the correct process will be chosen from the list and `./myshellscript` is a shell script to be executed any time the process is terminated or restarted.
+`gobeat -name="subl" -cmd="./myshellscript"` where `subl` is a name of a process to be monitored, that `gobeat` will use to list all processes that contain that name, where the correct process will be chosen from the list and `./myshellscript` is a shell script to be executed any time the process is terminated or restarted.
 
 #### Description:
 
