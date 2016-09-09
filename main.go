@@ -67,26 +67,32 @@ func main() {
 	// Find tty of process if one is available
 	//
 	// ps -o tty= -p $PID
-	tty, err := exec.Command("ps", "-o", "tty=", "-p", pidIntStr).Output()
-	if err != nil {
-		log.Fatalln(err)
+	var ttyStr = "??"
+
+	if *detach {
+		tty, err := exec.Command("ps", "-o", "tty=", "-p", pidIntStr).Output()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		ttyStr = strings.Trim(string(tty), "\n\r ")
 	}
-	ttyStr := strings.Trim(string(tty), "\n\r ")
 
 	var ttyFile *os.File
-
 	if ttyStr != "??" {
 		// Open the tty file.
 		ttyFile, err = os.Open("/dev/" + ttyStr)
-		if err != nil {
+
+		// If the tty file opened successfully, check for sudo privileges
+		// and defer to close ttyFile's.
+		if err == nil {
+			if os.Getgid() != 0 && os.Getuid() != 0 {
+				log.Fatalln("gobeat needs to run with sudo for restarting this process")
+			}
+			defer ttyFile.Close()
+		} else {
 			// If we can't open /dev/{ttyStr}, continue as if it's
 			// a regular application not in a tty.
 			ttyStr = "??"
-		}
-		defer ttyFile.Close()
-
-		if os.Getgid() != 0 && os.Getuid() != 0 {
-			log.Fatalln("gobeat needs to run with sudo for restarting this process")
 		}
 	}
 
@@ -113,11 +119,13 @@ func main() {
 	// it's restart process yet or not.
 	var running int64
 
-	errch := make(chan struct{})
+	errch, restarted := make(chan struct{}), make(chan struct{})
 	go func() {
 		for {
 			<-errch
 
+			// Set running to 1 so the proces signal isn't re-sent until the
+			// of running cmd and/or restarting the specified process completes.
 			atomic.AddInt64(&running, 1)
 
 			if *cmd != "" {
@@ -132,7 +140,16 @@ func main() {
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
 
-				if err := c.Run(); err != nil {
+				// Start the command.
+				if err := c.Start(); err != nil {
+					log.Fatalln(err)
+				}
+
+				// Print a running command message.
+				fmt.Printf("\n[Running command]: %s\n", *cmd)
+
+				// Wait for the command to finish.
+				if err := c.Wait(); err != nil {
 					log.Fatalln(err)
 				}
 			}
@@ -153,8 +170,8 @@ func main() {
 
 			// Restart the process.
 
-			// If process was running in a tty instance send the command
-			// using IOCTL with TIOCSTI system calls.
+			// If process was running in a tty instance and detach is set to
+			// true, send the command using IOCTL with TIOCSTI system calls.
 			if ttyStr != "??" {
 				// Append a new line character to cmdBytes so the command
 				// actually executes.
@@ -205,11 +222,14 @@ func main() {
 				if err != nil {
 					log.Fatalln(err)
 				}
+
 				// Reset proc to the new process found from the new pid.
 				proc, err = os.FindProcess(pid)
 				if err != nil {
 					log.Fatalln(err)
 				}
+
+				restarted <- struct{}{}
 			} else {
 				// Create a new command to start the process with.
 				c = exec.Command(pidCmdStr, args...)
@@ -221,13 +241,32 @@ func main() {
 				// is set to true.
 				c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
 
-				// Run the command.
-				if err := c.Run(); err != nil {
+				// Start the command.
+				if err := c.Start(); err != nil {
+					log.Fatalln(err)
+				}
+
+				restarted <- struct{}{}
+
+				// Wait for the command to finish.
+				if err := c.Wait(); err != nil {
 					log.Fatalln(err)
 				}
 			}
 
+			// Set running back to 0 so the proces signal can be re-sent again.
 			atomic.AddInt64(&running, -1)
+		}
+	}()
+
+	go func() {
+		for {
+			// Any time the restarted channel is received from, print a
+			// message saying what process was restarted.
+			<-restarted
+
+			// Print a restarted message.
+			fmt.Printf("\n[Restarted]: %s\n", pidCmdStr)
 		}
 	}()
 
