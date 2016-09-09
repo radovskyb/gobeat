@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 	"unicode"
 	"unsafe"
 )
+
+var err error
+var stdout bytes.Buffer
 
 func main() {
 	pid := flag.Int("pid", -1, "process pid to follow")
@@ -33,7 +37,6 @@ func main() {
 	// Check if a pid was supplied, otherwise check the name flag.
 	var pidIntStr string
 	var pidInt int
-	var err error
 	if *pid != -1 {
 		pidIntStr = strconv.Itoa(*pid)
 		pidInt = *pid
@@ -68,7 +71,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	pidCmdStr := strings.Trim(string(pidCmd), "\n\r")
+	pidCmdStr := trimOutput(pidCmd)
 
 	// Extract args. Example vim main.go
 	//
@@ -91,7 +94,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		ttyStr = strings.Trim(string(tty), "\n\r ")
+		ttyStr = trimOutput(tty)
 	}
 
 	var ttyFile *os.File
@@ -105,24 +108,32 @@ func main() {
 			// a regular application not in a tty.
 			ttyStr = "??"
 		}
+
+		// Defer to close ttyFile.
 		defer ttyFile.Close()
 	}
 
 	// Find folder of running process.
 	//
 	// lsof -p $PID | awk '$4=="cwd" {print $9}'
-	output, err := exec.Command("lsof", "-p", pidIntStr).Output()
+	lsofOutput, err := exec.Command("lsof", "-p", pidIntStr).Output()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	c := exec.Command("awk", "$4==\"cwd\" {print $9}")
-	c.Stdin = bytes.NewReader(output)
-	c.Stderr = os.Stderr
-	folderName, err := c.Output()
-	if err != nil {
-		log.Fatalln(err)
+
+	// Replacement for above awk.
+	var folderName string
+	scanner := bufio.NewScanner(bytes.NewReader(lsofOutput))
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		words := strings.FieldsFunc(scanner.Text(), unicode.IsSpace)
+		if words[3] == "cwd" {
+			folderName = strings.Join(words[8:], " ")
+		}
 	}
-	folderNameStr := strings.Trim(string(folderName), "\n\r")
+
+	folderNameStr := trimOutput([]byte(folderName))
+	fmt.Println(folderNameStr)
 
 	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
 		folderNameStr, pidCmdStr, strings.Join(args, ", "))
@@ -143,27 +154,22 @@ func main() {
 			if *cmd != "" {
 				command := strings.Split(*cmd, " ")
 
+				c := exec.Command(command[0])
 				if len(command) > 1 {
-					c = exec.Command(command[0], command[1:]...)
-				} else {
-					c = exec.Command(command[0])
+					c.Args = append(c.Args, command[1:]...)
 				}
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
 
 				// Start the command.
-				if err := c.Start(); err != nil {
-					log.Fatalln(err)
-				}
+				must(c.Start())
 
 				// Print a running command message.
 				fmt.Printf("\n[Running command]: %s\n", *cmd)
 
 				// Wait for the command to finish.
-				if err := c.Wait(); err != nil {
-					log.Fatalln(err)
-				}
+				must(c.Wait())
 			}
 
 			// If restart is not set to true, exit cleanly.
@@ -205,32 +211,29 @@ func main() {
 				// Get the new PID of the restarted process.
 				//
 				// ps -e | grep ttys002 | grep 'vim main.go' | awk '{print $1}'
-				psOutput, err := exec.Command("ps", "-e").Output()
+				ps := exec.Command("ps", "-e")
+				grep1 := exec.Command("grep", ttyStr)
+				grep1.Stdin, err = ps.StdoutPipe()
 				if err != nil {
 					log.Fatalln(err)
 				}
-				grepCmd1 := exec.Command("grep", ttyStr)
-				grepCmd1.Stdin = bytes.NewReader(psOutput)
-				grepCmd1.Stderr = os.Stderr
-				grepOutput1, err := grepCmd1.Output()
+				grep2 := exec.Command("grep", trimOutput(pidCommandEq))
+				grep2.Stdin, err = grep1.StdoutPipe()
 				if err != nil {
 					log.Fatalln(err)
 				}
-				grepCmd2 := exec.Command("grep", strings.Trim(string(pidCommandEq), "\n\r "))
-				grepCmd2.Stdin = bytes.NewReader(grepOutput1)
-				grepCmd2.Stderr = os.Stderr
-				grepOutput2, err := grepCmd2.Output()
-				if err != nil {
-					log.Fatalln(err)
-				}
-				awkCmd := exec.Command("awk", "{print $1}")
-				awkCmd.Stdin = bytes.NewReader(grepOutput2)
-				awkCmd.Stderr = os.Stderr
-				awkOutput, err := awkCmd.Output()
-				if err != nil {
-					log.Fatalln(err)
-				}
-				pid, err := strconv.Atoi(strings.Trim(string(awkOutput), "\n\r "))
+				stdout.Reset()
+				grep2.Stdout = &stdout
+
+				must(grep2.Start())
+				must(grep1.Start())
+				must(ps.Run())
+				must(grep1.Wait())
+				must(grep2.Wait())
+
+				pidStr := strings.Split(stdout.String(), " ")[0]
+
+				pid, err := strconv.Atoi(trimOutput([]byte(pidStr)))
 				if err != nil {
 					log.Fatalln(err)
 				}
@@ -244,7 +247,7 @@ func main() {
 				restarted <- struct{}{}
 			} else {
 				// Create a new command to start the process with.
-				c = exec.Command(pidCmdStr, args...)
+				c := exec.Command(pidCmdStr, args...)
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
@@ -254,16 +257,12 @@ func main() {
 				c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
 
 				// Start the command.
-				if err := c.Start(); err != nil {
-					log.Fatalln(err)
-				}
+				must(c.Start())
 
 				restarted <- struct{}{}
 
 				// Wait for the command to finish.
-				if err := c.Wait(); err != nil {
-					log.Fatalln(err)
-				}
+				must(c.Wait())
 			}
 
 			// Set running back to 0 so the proces signal can be re-sent again.
@@ -300,29 +299,28 @@ func main() {
 // getPidByName takes in a name and finds the pid associated with it.
 func getPidByName(procName string) (string, error) {
 	// ps -o command= -e | grep -i "name" | grep -v grep
-	psOutput, err := exec.Command("ps", "-o", "command=", "-e").Output()
+	ps := exec.Command("ps", "-o", "command=", "-e")
+	grep1 := exec.Command("grep", "-i", procName)
+	grep1.Stdin, err = ps.StdoutPipe()
 	if err != nil {
 		return "", err
 	}
-	// Grep the name from the ps output list.
-	psGrep := exec.Command("grep", "-i", procName)
-	psGrep.Stdin = bytes.NewReader(psOutput)
-	psGrep.Stderr = os.Stderr
-	psGrepOutput, err := psGrep.Output()
+	grep2 := exec.Command("grep", "-v", "grep")
+	grep2.Stdin, err = grep1.StdoutPipe()
 	if err != nil {
 		return "", err
 	}
-	// Hide grep from grep results (grep -v grep)
-	hideGrep := exec.Command("grep", "-v", "grep")
-	hideGrep.Stdin = bytes.NewReader(psGrepOutput)
-	hideGrep.Stderr = os.Stderr
-	hideGrepOutput, err := hideGrep.Output()
-	if err != nil {
-		return "", err
-	}
+	stdout.Reset()
+	grep2.Stdout = &stdout
+
+	must(grep2.Start())
+	must(grep1.Start())
+	must(ps.Run())
+	must(grep1.Wait())
+	must(grep2.Wait())
 
 	// Display a list of all the found names.
-	names := strings.Split(strings.Trim(string(hideGrepOutput), "\n\r "), "\n")
+	names := strings.Split(trimOutput(stdout.Bytes()), "\n")
 	for i, name := range names {
 		fmt.Printf("%d: %s\n", i, name)
 	}
@@ -338,35 +336,36 @@ func getPidByName(procName string) (string, error) {
 	// Get the pid for the process.
 	//
 	// ps -e | grep "name" | grep -v grep | awk '{print $1}'
-	psOutput, err = exec.Command("ps", "-e").Output()
+	ps = exec.Command("ps", "-e")
+	grep1 = exec.Command("grep", names[procNumber])
+	grep1.Stdin, err = ps.StdoutPipe()
 	if err != nil {
-		return "", err
+		log.Fatalln(err)
 	}
-	// Grep the full name from the ps output list.
-	psGrep = exec.Command("grep", names[procNumber])
-	psGrep.Stdin = bytes.NewReader(psOutput)
-	psGrep.Stderr = os.Stderr
-	psGrepOutput, err = psGrep.Output()
+	grep2 = exec.Command("grep", "-v", "grep")
+	grep2.Stdin, err = grep1.StdoutPipe()
 	if err != nil {
-		return "", err
+		log.Fatalln(err)
 	}
-	// Hide grep from grep results (grep -v grep)
-	hideGrep = exec.Command("grep", "-v", "grep")
-	hideGrep.Stdin = bytes.NewReader(psGrepOutput)
-	hideGrep.Stderr = os.Stderr
-	hideGrepOutput, err = hideGrep.Output()
-	if err != nil {
-		return "", err
-	}
-	// Extract the pid using awk.
-	pidAwk := exec.Command("awk", "{print $1}")
-	pidAwk.Stdin = bytes.NewReader(hideGrepOutput)
-	pidAwk.Stderr = os.Stderr
-	pidAwkOutput, err := pidAwk.Output()
-	if err != nil {
-		return "", err
-	}
+	stdout.Reset()
+	grep2.Stdout = &stdout
+
+	must(grep2.Start())
+	must(grep1.Start())
+	must(ps.Run())
+	must(grep1.Wait())
+	must(grep2.Wait())
 
 	// Return the pid string.
-	return strings.Trim(string(pidAwkOutput), "\n\r "), nil
+	return trimOutput([]byte(strings.Split(stdout.String(), " ")[0])), nil
+}
+
+func trimOutput(output []byte) string {
+	return strings.Trim(string(output), "\n\r ")
+}
+
+func must(err error) {
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
