@@ -79,7 +79,9 @@ func main() {
 		// Open the tty file.
 		ttyFile, err = os.Open("/dev/" + ttyStr)
 		if err != nil {
-			log.Fatalln(err)
+			// If we can't open /dev/{ttyStr}, continue as if it's
+			// a regular application not in a tty.
+			ttyStr = "??"
 		}
 		defer ttyFile.Close()
 
