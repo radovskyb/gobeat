@@ -22,15 +22,34 @@ func main() {
 	cmd := flag.String("cmd", "", "run a command when the process terminates")
 	restart := flag.Bool("restart", true, "restart the process on termination")
 	detach := flag.Bool("detach", true, "detach the restarted process group")
+	procName := flag.String("name", "", "the name of the process to find a pid for")
 
 	flag.Parse()
 
-	if *pid == -1 {
-		log.Fatalf("pid flag not specified")
+	if *pid == -1 && *procName == "" {
+		log.Fatalf("pid or name flag not specified")
+	}
+
+	// Check if a pid was supplied, otherwise check the name flag.
+	var pidIntStr string
+	var pidInt int
+	var err error
+	if *pid != -1 {
+		pidIntStr = strconv.Itoa(*pid)
+		pidInt = *pid
+	} else {
+		pidIntStr, err = getPidByName(*procName)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		pidInt, err = strconv.Atoi(pidIntStr)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	// Find the process associated with the pid.
-	proc, err := os.FindProcess(*pid)
+	proc, err := os.FindProcess(pidInt)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -40,8 +59,6 @@ func main() {
 	if err != nil {
 		log.Fatalln("process is not running")
 	}
-
-	pidIntStr := strconv.Itoa(*pid)
 
 	// If restart is set to true, find the command that started the process.
 	//
@@ -283,4 +300,78 @@ func main() {
 		// Sleep for the specified interval.
 		time.Sleep(time.Millisecond * time.Duration(*interval))
 	}
+}
+
+// getPidByName takes in a name and finds the pid associated with it.
+func getPidByName(procName string) (string, error) {
+	// ps -o command= -e | grep -i "name" | grep -v grep
+	psOutput, err := exec.Command("ps", "-o", "command=", "-e").Output()
+	if err != nil {
+		return "", err
+	}
+	// Grep the name from the ps output list.
+	psGrep := exec.Command("grep", "-i", procName)
+	psGrep.Stdin = bytes.NewReader(psOutput)
+	psGrep.Stderr = os.Stderr
+	psGrepOutput, err := psGrep.Output()
+	if err != nil {
+		return "", err
+	}
+	// Hide grep from grep results (grep -v grep)
+	hideGrep := exec.Command("grep", "-v", "grep")
+	hideGrep.Stdin = bytes.NewReader(psGrepOutput)
+	hideGrep.Stderr = os.Stderr
+	hideGrepOutput, err := hideGrep.Output()
+	if err != nil {
+		return "", err
+	}
+
+	// Display a list of all the found names.
+	names := strings.Split(strings.Trim(string(hideGrepOutput), "\n\r "), "\n")
+	for i, name := range names {
+		fmt.Printf("%d: %s\n", i, name)
+	}
+
+	procNumber := -1
+	fmt.Println("\nWhich number above represents the correct process (enter the number):")
+	fmt.Scanf("%d", &procNumber)
+
+	if procNumber < 0 {
+		return "", fmt.Errorf("please enter a valid number")
+	}
+
+	// Get the pid for the process.
+	//
+	// ps -e | grep "name" | grep -v grep | awk '{print $1}'
+	psOutput, err = exec.Command("ps", "-e").Output()
+	if err != nil {
+		return "", err
+	}
+	// Grep the full name from the ps output list.
+	psGrep = exec.Command("grep", names[procNumber])
+	psGrep.Stdin = bytes.NewReader(psOutput)
+	psGrep.Stderr = os.Stderr
+	psGrepOutput, err = psGrep.Output()
+	if err != nil {
+		return "", err
+	}
+	// Hide grep from grep results (grep -v grep)
+	hideGrep = exec.Command("grep", "-v", "grep")
+	hideGrep.Stdin = bytes.NewReader(psGrepOutput)
+	hideGrep.Stderr = os.Stderr
+	hideGrepOutput, err = hideGrep.Output()
+	if err != nil {
+		return "", err
+	}
+	// Extract the pid using awk.
+	pidAwk := exec.Command("awk", "{print $1}")
+	pidAwk.Stdin = bytes.NewReader(hideGrepOutput)
+	pidAwk.Stderr = os.Stderr
+	pidAwkOutput, err := pidAwk.Output()
+	if err != nil {
+		return "", err
+	}
+
+	// Return the pid string.
+	return strings.Trim(string(pidAwkOutput), "\n\r "), nil
 }
