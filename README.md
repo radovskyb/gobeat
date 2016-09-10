@@ -41,4 +41,4 @@ it in the first place with any args it was initially given.
 When restarting the server's process, I have `gobeat` call a `go run` command, set using the `cmd` flag, 
 that runs a simple `Go` script to send an email notifying me that the server was restarted.
 
-It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps` and `grep` but it gets the job done for me.
+It's not the most idiomatic piece of software and uses the unix commands `lsof` and `ps` for finding process information since /proc/ is not available on my MacBook Pro, but it gets the job done for me.
