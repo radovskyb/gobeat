@@ -327,7 +327,7 @@ func getPidByName(procName string) (string, error) {
 }
 
 func trimOutput(output string) string {
-	return strings.Trim(output, "\n\r ")
+	return strings.TrimFunc(output, unicode.IsSpace)
 }
 
 func must(err error) {
