@@ -124,13 +124,13 @@ func main() {
 	// Replaces above awk.
 	var folderName string
 	scanner := bufio.NewScanner(bytes.NewReader(lsofOutput))
-	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		words := strings.FieldsFunc(scanner.Text(), unicode.IsSpace)
 		if words[3] == "cwd" {
 			folderName = strings.Join(words[8:], " ")
 		}
 	}
+	must(scanner.Err())
 
 	folderNameStr := trimOutput(folderName)
 	fmt.Println(folderNameStr)
@@ -225,6 +225,7 @@ func main() {
 						pidStr = strings.Split(line, " ")[0]
 					}
 				}
+				must(scanner.Err())
 
 				pid, err := strconv.Atoi(trimOutput(pidStr))
 				if err != nil {
@@ -306,6 +307,7 @@ func getPidByName(procName string) (string, error) {
 			names = append(names, line)
 		}
 	}
+	must(scanner.Err())
 
 	// Display a list of all the found names.
 	for i, name := range names {
