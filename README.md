@@ -2,6 +2,8 @@
 
 ##### So far only tested on MacOS
 
+UPDATE: Replaced all greps and awks with pure Go.
+
 `gobeat` is a health check monitor, command automation tool and process restarter, for any process found by name or pid.
 
 #### Example usage: 
@@ -39,5 +41,4 @@ it in the first place with any args it was initially given.
 When restarting the server's process, I have `gobeat` call a `go run` command, set using the `cmd` flag, 
 that runs a simple `Go` script to send an email notifying me that the server was restarted.
 
-It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps`, `grep` and `awk`,
-but it gets the job done for me.
+It's not the most idiomatic piece of software and also uses unix commands such as `lsof`, `ps` and `grep` but it gets the job done for me.

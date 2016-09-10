@@ -21,11 +21,11 @@ var err error
 var stdout bytes.Buffer
 
 func main() {
-	pid := flag.Int("pid", -1, "process pid to follow")
-	interval := flag.Int("interval", 100, "interval for checking the process in milliseconds")
-	cmd := flag.String("cmd", "", "run a command when the process terminates")
-	restart := flag.Bool("restart", true, "restart the process on termination")
-	detach := flag.Bool("detach", true, "detach the restarted process group")
+	pid := flag.Int("pid", -1, "the pid of the process to follow")
+	interval := flag.Int("interval", 100, "interval for health checking the process in milliseconds")
+	cmd := flag.String("cmd", "", "run a command any time the process restarts or terminates")
+	restart := flag.Bool("restart", true, "restart the process on any time it terminates")
+	detach := flag.Bool("detach", true, "detach the restarted process group from gobeat")
 	procName := flag.String("name", "", "the name of the process to find a pid for")
 
 	flag.Parse()
@@ -211,28 +211,20 @@ func main() {
 				// Get the new PID of the restarted process.
 				//
 				// ps -e | grep ttys002 | grep 'vim main.go' | awk '{print $1}'
-				ps := exec.Command("ps", "-e")
-				grep1 := exec.Command("grep", ttyStr)
-				grep1.Stdin, err = ps.StdoutPipe()
+				ps, err := exec.Command("ps", "-e").Output()
 				if err != nil {
 					log.Fatalln(err)
 				}
-				grep2 := exec.Command("grep", trimOutput(string(pidCommandEq)))
-				grep2.Stdin, err = grep1.StdoutPipe()
-				if err != nil {
-					log.Fatalln(err)
+
+				var pidStr string
+				scanner := bufio.NewScanner(bytes.NewReader(ps))
+				for scanner.Scan() {
+					line := scanner.Text()
+					if strings.Contains(line, trimOutput(string(pidCommandEq))) &&
+						strings.Contains(line, ttyStr) {
+						pidStr = strings.Split(line, " ")[0]
+					}
 				}
-				stdout.Reset()
-				grep2.Stdout = &stdout
-
-				must(grep2.Start())
-				must(grep1.Start())
-				must(ps.Run())
-				must(grep1.Wait())
-				must(grep2.Wait())
-
-				// Replaces above awk.
-				pidStr := strings.Split(stdout.String(), " ")[0]
 
 				pid, err := strconv.Atoi(trimOutput(pidStr))
 				if err != nil {
@@ -299,29 +291,23 @@ func main() {
 
 // getPidByName takes in a name and finds the pid associated with it.
 func getPidByName(procName string) (string, error) {
-	// ps -o command= -e | grep -i "name" | grep -v grep
-	ps := exec.Command("ps", "-o", "command=", "-e")
-	grep1 := exec.Command("grep", "-i", procName)
-	grep1.Stdin, err = ps.StdoutPipe()
+	// ps -o | grep -i "name" | grep -v grep
+	psOutput, err := exec.Command("ps", "-e").Output()
 	if err != nil {
-		return "", err
+		log.Fatalln(err)
 	}
-	grep2 := exec.Command("grep", "-v", "grep")
-	grep2.Stdin, err = grep1.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
-	stdout.Reset()
-	grep2.Stdout = &stdout
+	lowercaseOutput := bytes.ToLower(psOutput)
 
-	must(grep2.Start())
-	must(grep1.Start())
-	must(ps.Run())
-	must(grep1.Wait())
-	must(grep2.Wait())
+	var names []string
+	scanner := bufio.NewScanner(bytes.NewReader(lowercaseOutput))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, procName) {
+			names = append(names, line)
+		}
+	}
 
 	// Display a list of all the found names.
-	names := strings.Split(trimOutput(stdout.String()), "\n")
 	for i, name := range names {
 		fmt.Printf("%d: %s\n", i, name)
 	}
@@ -334,31 +320,8 @@ func getPidByName(procName string) (string, error) {
 		return "", fmt.Errorf("please enter a valid number")
 	}
 
-	// Get the pid for the process.
-	//
-	// ps -e | grep "name" | grep -v grep | awk '{print $1}'
-	ps = exec.Command("ps", "-e")
-	grep1 = exec.Command("grep", names[procNumber])
-	grep1.Stdin, err = ps.StdoutPipe()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	grep2 = exec.Command("grep", "-v", "grep")
-	grep2.Stdin, err = grep1.StdoutPipe()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	stdout.Reset()
-	grep2.Stdout = &stdout
-
-	must(grep2.Start())
-	must(grep1.Start())
-	must(ps.Run())
-	must(grep1.Wait())
-	must(grep2.Wait())
-
-	// Return the pid string (Replaces above awk).
-	return trimOutput(strings.Split(stdout.String(), " ")[0]), nil
+	// Return the pid string.
+	return trimOutput(strings.Split(names[procNumber], " ")[0]), nil
 }
 
 func trimOutput(output string) string {
