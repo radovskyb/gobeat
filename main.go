@@ -18,7 +18,6 @@ import (
 )
 
 var err error
-var stdout bytes.Buffer
 
 func main() {
 	pid := flag.Int("pid", -1, "the pid of the process to follow")
