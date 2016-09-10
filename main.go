@@ -132,7 +132,6 @@ func main() {
 	must(scanner.Err())
 
 	folderNameStr := strings.TrimSpace(folderName)
-	fmt.Println(folderNameStr)
 
 	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
 		folderNameStr, pidCmdStr, strings.Join(args, ", "))
