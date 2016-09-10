@@ -70,7 +70,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	pidCmdStr := trimOutput(string(pidCmd))
+	pidCmdStr := strings.TrimSpace(string(pidCmd))
 
 	// Extract args. Example vim main.go
 	//
@@ -93,7 +93,7 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		ttyStr = trimOutput(string(tty))
+		ttyStr = strings.TrimSpace(string(tty))
 	}
 
 	var ttyFile *os.File
@@ -131,7 +131,7 @@ func main() {
 	}
 	must(scanner.Err())
 
-	folderNameStr := trimOutput(folderName)
+	folderNameStr := strings.TrimSpace(folderName)
 	fmt.Println(folderNameStr)
 
 	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
@@ -219,14 +219,14 @@ func main() {
 				scanner := bufio.NewScanner(bytes.NewReader(ps))
 				for scanner.Scan() {
 					line := scanner.Text()
-					if strings.Contains(line, trimOutput(string(pidCommandEq))) &&
+					if strings.Contains(line, strings.TrimSpace(string(pidCommandEq))) &&
 						strings.Contains(line, ttyStr) {
 						pidStr = strings.Split(line, " ")[0]
 					}
 				}
 				must(scanner.Err())
 
-				pid, err := strconv.Atoi(trimOutput(pidStr))
+				pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
 				if err != nil {
 					log.Fatalln(err)
 				}
@@ -322,11 +322,7 @@ func getPidByName(procName string) (string, error) {
 	}
 
 	// Return the pid string.
-	return trimOutput(strings.Split(names[procNumber], " ")[0]), nil
-}
-
-func trimOutput(output string) string {
-	return strings.TrimFunc(output, unicode.IsSpace)
+	return strings.TrimSpace(strings.Split(names[procNumber], " ")[0]), nil
 }
 
 func must(err error) {
