@@ -53,8 +53,9 @@ func main() {
 	var ttyFile *os.File
 	if proc.InTty() && *detach {
 		if os.Getgid() != 0 || os.Getuid() != 0 {
-			log.Fatalln("gobeat needs sudo to restart process in it's tty" +
-				"(use -detach=false to restart with gobeat's process)")
+			fmt.Println("gobeat needs to be started with sudo to restart the process in it's tty.\n" +
+				"either start gobeat with sudo OR with -detach=false to restart with gobeat's process.")
+			os.Exit(0)
 		} else {
 			ttyFile, err = proc.OpenTty()
 			if err != nil {
