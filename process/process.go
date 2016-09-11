@@ -20,6 +20,48 @@ type Process struct {
 	Args []string
 }
 
+func (p Process) String() string {
+	return fmt.Sprintf("[Pid]: %d\n"+
+		"[Command]: %s\n"+
+		"[Args]: %s\n"+
+		"[Cwd]: %v\n"+
+		"[Tty]: %s\n",
+		p.Pid,
+		p.Cmd,
+		strings.Join(p.Args, ", "),
+		p.Cwd,
+		p.Tty,
+	)
+}
+
+// FindPid finds the pid of a process based on running command,
+// it's command's args and also it's tty.
+func (p *Process) FindPid() error {
+	ps, err := exec.Command("ps", "-e").Output()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(ps))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, p.Cmd+" "+strings.Join(p.Args, " ")) &&
+			strings.Contains(line, p.Tty) {
+			p.Pid, err = strconv.Atoi(strings.TrimSpace(strings.Split(line, " ")[0]))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Reset p.Process to the new process found from the new pid.
+	p.Process, err = os.FindProcess(p.Pid)
+	return err
+}
+
 func FindByName(name string) (*Process, error) {
 	psOutput, err := exec.Command("ps", "-e").Output()
 	if err != nil {
@@ -114,8 +156,9 @@ func FindByPid(pid int) (*Process, error) {
 			process.Cwd = strings.TrimSpace(strings.Join(words[8:], " "))
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
 
-	// If there was a scanner error, still return whatever process information
-	// has so far been retrieved.
-	return process, scanner.Err()
+	return process, nil
 }

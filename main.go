@@ -8,16 +8,14 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
-	"unicode"
 	"unsafe"
-)
 
-var err error
+	"github.com/radovskyb/gobeat/process"
+)
 
 func main() {
 	pid := flag.Int("pid", -1, "the pid of the process to follow")
@@ -33,27 +31,21 @@ func main() {
 		log.Fatalf("pid or name flag not specified")
 	}
 
-	// Check if a pid was supplied, otherwise check the name flag.
-	var pidIntStr string
-	var pidInt int
-	if *pid != -1 {
-		pidIntStr = strconv.Itoa(*pid)
-		pidInt = *pid
-	} else {
-		pidIntStr, err = getPidByName(*procName)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		pidInt, err = strconv.Atoi(pidIntStr)
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-
 	// Find the process associated with the pid.
-	proc, err := os.FindProcess(pidInt)
-	if err != nil {
-		log.Fatalln(err)
+	//
+	// Check if a pid was supplied, otherwise check the name flag.
+	var err error
+	var proc *process.Process
+	if *pid != -1 {
+		proc, err = process.FindByPid(*pid)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	} else {
+		proc, err = process.FindByName(*procName)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	// Check initial heartbeat.
@@ -62,79 +54,24 @@ func main() {
 		log.Fatalln("process is not running")
 	}
 
-	// If restart is set to true, find the command that started the process.
-	//
-	// ps -o comm= -p $PID
-	pidCmd, err := exec.Command("ps", "-o", "comm=", pidIntStr).Output()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	pidCmdStr := strings.TrimSpace(string(pidCmd))
-
-	// Extract args. Example vim main.go
-	//
-	// Get the ps command= string result.
-	pidCommandEq, err := exec.Command("ps", "-o", "command=", pidIntStr).Output()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	split := strings.SplitAfter(string(pidCommandEq), string(pidCmdStr))
-	args := strings.FieldsFunc(split[1], unicode.IsSpace)
-
-	// Find tty of process if one is available
-	//
-	// ps -o tty= -p $PID
-	var ttyStr = "??"
-
-	if *detach {
-		tty, err := exec.Command("ps", "-o", "tty=", "-p", pidIntStr).Output()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		ttyStr = strings.TrimSpace(string(tty))
-	}
-
 	var ttyFile *os.File
-	if ttyStr != "??" {
+	if proc.Tty != "??" {
 		// Open the tty file.
-		ttyFile, err = os.Open("/dev/" + ttyStr)
+		ttyFile, err = os.Open("/dev/" + proc.Tty)
 
 		// Check for sudo privileges and any errors.
 		if err != nil || (os.Getuid() != 0 && os.Getgid() != 0) {
 			// If we can't open /dev/{ttyStr}, continue as if it's
 			// a regular application not in a tty.
-			ttyStr = "??"
+			proc.Tty = "??"
 		}
 
 		// Defer to close ttyFile.
 		defer ttyFile.Close()
 	}
 
-	// Find folder of running process.
-	//
-	// lsof -p $PID | awk '$4=="cwd" {print $9}'
-	lsofOutput, err := exec.Command("lsof", "-p", pidIntStr).Output()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// Replaces above awk.
-	var folderName string
-	scanner := bufio.NewScanner(bytes.NewReader(lsofOutput))
-	for scanner.Scan() {
-		words := strings.FieldsFunc(scanner.Text(), unicode.IsSpace)
-		if words[3] == "cwd" {
-			folderName = strings.Join(words[8:], " ")
-		}
-	}
-	must(scanner.Err())
-
-	folderNameStr := strings.TrimSpace(folderName)
-
-	fmt.Printf("[Process Folder]: %s\n[Command]: %s\n[Args]: %v\n",
-		folderNameStr, pidCmdStr, strings.Join(args, ", "))
+	// Log the process's information
+	fmt.Print(proc)
 
 	// running hold a 1 or a 0 depending on whether or not the process has completed
 	// it's restart process yet or not.
@@ -176,7 +113,7 @@ func main() {
 			}
 
 			// Change into the working directory where the process was called.
-			if err := os.Chdir(folderNameStr); err != nil {
+			if err := os.Chdir(proc.Cwd); err != nil {
 				// If the folder DOES exist, report the error, otherwise,
 				// just run the process from the current folder if possible.
 				if os.IsExist(err) {
@@ -185,13 +122,13 @@ func main() {
 			}
 
 			// Restart the process.
-
+			//
 			// If process was running in a tty instance and detach is set to
 			// true, send the command using IOCTL with TIOCSTI system calls.
-			if ttyStr != "??" {
-				// Append a new line character to cmdBytes so the command
+			if proc.Tty != "??" {
+				// Append a new line character to the full command so the command
 				// actually executes.
-				pidCommandEqNL := append(pidCommandEq, byte('\n'))
+				pidCommandEqNL := proc.Cmd + " " + strings.Join(proc.Args, " ") + "\n"
 
 				// Write each byte from pidCommandEq to the tty instance.
 				var eno syscall.Errno
@@ -207,39 +144,14 @@ func main() {
 				}
 
 				// Get the new PID of the restarted process.
-				//
-				// ps -e | grep ttys002 | grep 'vim main.go' | awk '{print $1}'
-				ps, err := exec.Command("ps", "-e").Output()
-				if err != nil {
-					log.Fatalln(err)
-				}
-
-				var pidStr string
-				scanner := bufio.NewScanner(bytes.NewReader(ps))
-				for scanner.Scan() {
-					line := scanner.Text()
-					if strings.Contains(line, strings.TrimSpace(string(pidCommandEq))) &&
-						strings.Contains(line, ttyStr) {
-						pidStr = strings.Split(line, " ")[0]
-					}
-				}
-				must(scanner.Err())
-
-				pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-				if err != nil {
-					log.Fatalln(err)
-				}
-
-				// Reset proc to the new process found from the new pid.
-				proc, err = os.FindProcess(pid)
-				if err != nil {
+				if err := proc.FindPid(); err != nil {
 					log.Fatalln(err)
 				}
 
 				restarted <- struct{}{}
 			} else {
 				// Create a new command to start the process with.
-				c := exec.Command(pidCmdStr, args...)
+				c := exec.Command(proc.Cmd, proc.Args...)
 				c.Stdin = os.Stdin
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
@@ -269,7 +181,7 @@ func main() {
 			<-restarted
 
 			// Print a restarted message.
-			fmt.Printf("\n[Restarted]: %s\n", pidCmdStr)
+			fmt.Printf("\n[Restarted]: %s\n", proc.Cmd)
 		}
 	}()
 
