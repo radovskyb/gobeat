@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/radovskyb/gobeat/process"
+	"github.com/radovskyb/process"
 )
 
 func main() {
