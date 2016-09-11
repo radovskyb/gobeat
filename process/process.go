@@ -71,6 +71,10 @@ func (p *Process) FindPid() error {
 	return err
 }
 
+func (p Process) FullCommand() string {
+	return p.Cmd + " " + strings.Join(p.Args, " ")
+}
+
 func FindByName(name string) (*Process, error) {
 	psOutput, err := exec.Command("ps", "-e").Output()
 	if err != nil {
@@ -109,10 +113,6 @@ func FindByName(name string) (*Process, error) {
 	}
 
 	return FindByPid(pid)
-}
-
-func (p Process) FullCommand() string {
-	return p.Cmd + " " + strings.Join(p.Args, " ")
 }
 
 func FindByPid(pid int) (*Process, error) {
