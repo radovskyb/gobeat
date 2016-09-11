@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -44,12 +45,16 @@ func (p Process) HealthCheck() error {
 	return nil
 }
 
-func (p *Process) Start(detach bool, notify chan<- struct{}) error {
+// Start starts a process and notifies on the notify channel
+// when the process has been started. It uses stdin, stdout and
+// stderr for the command's stdin, stdout and stderr respectively.
+func (p *Process) Start(detach bool, stdin io.Reader, stdout, stderr io.Writer,
+	notify chan<- struct{}) error {
 	// Create a new command to start the process with.
 	c := exec.Command(p.Cmd, p.Args...)
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
+	c.Stdin = stdin
+	c.Stdout = stdout
+	c.Stderr = stderr
 
 	if p.InTty() {
 		// Start the process in a different process group if detach is set to true.
@@ -71,14 +76,14 @@ func (p *Process) Start(detach bool, notify chan<- struct{}) error {
 	return c.Wait()
 }
 
-// StartTty starts a process in it's tty and notifies on the
+// StartTty starts a process in a tty and notifies on the
 // notify channel when the process has been started.
 func (p *Process) StartTty(ttyFd uintptr, notify chan<- struct{}) error {
 	// Append a new line character to the full command so the command
 	// actually executes.
 	fullCommandNL := p.FullCommand() + "\n"
 
-	// Write each byte from pidCommandEq to the tty instance.
+	// Write each byte from fullCommandNL to the tty instance.
 	var eno syscall.Errno
 	for _, b := range fullCommandNL {
 		_, _, eno = syscall.Syscall(syscall.SYS_IOCTL,

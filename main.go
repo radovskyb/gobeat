@@ -122,7 +122,7 @@ func main() {
 			if proc.InTty() && *detach {
 				must(proc.StartTty(ttyFile.Fd(), restarted))
 			} else {
-				must(proc.Start(*detach, restarted))
+				must(proc.Start(*detach, os.Stdin, os.Stdout, os.Stderr, restarted))
 			}
 
 			// Set running back to 0 so the proces signal can be re-sent again.
