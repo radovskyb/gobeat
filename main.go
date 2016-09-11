@@ -47,10 +47,7 @@ func main() {
 	}
 
 	// Check initial heartbeat.
-	err = proc.Signal(syscall.Signal(0))
-	if err != nil {
-		log.Fatalln("process is not running")
-	}
+	must(proc.HealthCheck())
 
 	var ttyFile *os.File
 	if proc.Tty != "??" {
@@ -187,7 +184,7 @@ func main() {
 		// Send a signal if no restart is already in progress.
 		if atomic.LoadInt64(&running) == 0 {
 			// Check if the process is running.
-			err := proc.Signal(syscall.Signal(0))
+			err = proc.HealthCheck()
 			if err != nil {
 				errch <- struct{}{}
 			}

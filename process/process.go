@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode"
 )
 
@@ -34,8 +35,16 @@ func (p Process) String() string {
 	)
 }
 
-// FindPid finds the pid of a process based on running command,
-// it's command's args and also it's tty.
+// HealthCheck signals the process to see if it's still running.
+func (p Process) HealthCheck() error {
+	if err := p.Signal(syscall.Signal(0)); err != nil {
+		return fmt.Errorf("process is not running")
+	}
+	return nil
+}
+
+// FindPid finds the pid of a process based on it's command,
+// it's command's arguments and it's tty.
 func (p *Process) FindPid() error {
 	ps, err := exec.Command("ps", "-e").Output()
 	if err != nil {
