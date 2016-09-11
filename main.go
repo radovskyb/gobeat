@@ -49,21 +49,11 @@ func main() {
 	// Check initial heartbeat.
 	must(proc.HealthCheck())
 
-	var ttyFile *os.File
-	if proc.Tty != "??" {
-		// Open the tty file.
-		ttyFile, err = os.Open("/dev/" + proc.Tty)
-
-		// Check for sudo privileges and any errors.
-		if err != nil || (os.Getuid() != 0 && os.Getgid() != 0) {
-			// If we can't open /dev/{ttyStr}, continue as if it's
-			// a regular application not in a tty.
-			proc.Tty = "??"
-		}
-
-		// Defer to close ttyFile.
-		defer ttyFile.Close()
+	ttyFile, err := proc.OpenTty()
+	if err != nil && err == os.ErrPermission {
+		fmt.Println("start gobeat with sudo to restart application in correct tty")
 	}
+	defer ttyFile.Close()
 
 	// Log the process's information
 	fmt.Print(proc)
@@ -118,9 +108,12 @@ func main() {
 
 			// Restart the process.
 			//
-			// If process was running in a tty instance and detach is set to
-			// true, send the command using IOCTL with TIOCSTI system calls.
-			if proc.Tty != "??" {
+			// If process was running in a tty instance, detach is set to
+			// true and the user is sudo, send the command using IOCTL with
+			// TIOCSTI system calls to the correct tty.
+			if proc.InTty() &&
+				(os.Getgid() == 0 && os.Getuid() == 0) &&
+				*detach {
 				// Append a new line character to the full command so the command
 				// actually executes.
 				fullCommandNL := proc.FullCommand() + "\n"
@@ -151,9 +144,13 @@ func main() {
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
 
-				// Start the process in a different process group if detach
-				// is set to true.
-				c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
+				if proc.InTty() {
+					// Start the process in a different process group if detach is set to true.
+					c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
+				} else {
+					// If process didn't start in a tty, don't run it as this tty.
+					c.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+				}
 
 				// Start the command.
 				must(c.Start())

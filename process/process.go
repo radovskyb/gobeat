@@ -75,6 +75,17 @@ func (p Process) FullCommand() string {
 	return p.Cmd + " " + strings.Join(p.Args, " ")
 }
 
+func (p Process) InTty() bool {
+	return p.Tty != "??"
+}
+
+func (p Process) OpenTty() (*os.File, error) {
+	if !p.InTty() {
+		return nil, fmt.Errorf("process is not in a tty")
+	}
+	return os.Open("/dev/" + p.Tty)
+}
+
 func FindByName(name string) (*Process, error) {
 	psOutput, err := exec.Command("ps", "-e").Output()
 	if err != nil {
