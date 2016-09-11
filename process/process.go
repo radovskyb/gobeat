@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 	"unicode"
+	"unsafe"
 )
 
 type Process struct {
@@ -43,9 +44,70 @@ func (p Process) HealthCheck() error {
 	return nil
 }
 
+func (p *Process) Start(detach bool, notify chan<- struct{}) error {
+	// Create a new command to start the process with.
+	c := exec.Command(p.Cmd, p.Args...)
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+
+	if p.InTty() {
+		// Start the process in a different process group if detach is set to true.
+		c.SysProcAttr = &syscall.SysProcAttr{Setpgid: detach}
+	} else {
+		// If process didn't start in a tty and detach is true, disconnect
+		// process from any tty.
+		c.SysProcAttr = &syscall.SysProcAttr{Setsid: detach}
+	}
+
+	// Start the command.
+	if err := c.Start(); err != nil {
+		return err
+	}
+
+	notify <- struct{}{}
+
+	// Wait for the command to finish.
+	return c.Wait()
+}
+
+// StartTty starts a process in it's tty and notifies on the
+// notify channel when the process has been started.
+func (p *Process) StartTty(ttyFd uintptr, notify chan<- struct{}) error {
+	// Append a new line character to the full command so the command
+	// actually executes.
+	fullCommandNL := p.FullCommand() + "\n"
+
+	// Write each byte from pidCommandEq to the tty instance.
+	var eno syscall.Errno
+	for _, b := range fullCommandNL {
+		_, _, eno = syscall.Syscall(syscall.SYS_IOCTL,
+			ttyFd,
+			syscall.TIOCSTI,
+			uintptr(unsafe.Pointer(&b)),
+		)
+		if eno != 0 {
+			return error(eno)
+		}
+	}
+
+	// Get the new PID of the restarted process.
+	if err := p.FindPid(); err != nil {
+		return err
+	}
+
+	notify <- struct{}{}
+
+	return nil
+}
+
 // FindPid finds the pid of a process based on it's command,
 // it's command's arguments and it's tty.
 func (p *Process) FindPid() error {
+	if p.Cmd == "" {
+		return fmt.Errorf("process command is empty")
+	}
+
 	ps, err := exec.Command("ps", "-e").Output()
 	if err != nil {
 		log.Fatalln(err)

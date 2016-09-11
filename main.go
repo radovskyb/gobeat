@@ -8,9 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/radovskyb/gobeat/process"
 )
@@ -112,7 +110,7 @@ func main() {
 				// If the folder DOES exist, report the error, otherwise,
 				// just run the process from the current folder if possible.
 				if os.IsExist(err) {
-					log.Fatalln(err)
+					return
 				}
 			}
 
@@ -122,51 +120,9 @@ func main() {
 			// true and the user is sudo, send the command using IOCTL with
 			// TIOCSTI system calls to the correct tty.
 			if proc.InTty() && *detach {
-				// Append a new line character to the full command so the command
-				// actually executes.
-				fullCommandNL := proc.FullCommand() + "\n"
-
-				// Write each byte from pidCommandEq to the tty instance.
-				var eno syscall.Errno
-				for _, b := range fullCommandNL {
-					_, _, eno = syscall.Syscall(syscall.SYS_IOCTL,
-						ttyFile.Fd(),
-						syscall.TIOCSTI,
-						uintptr(unsafe.Pointer(&b)),
-					)
-					if eno != 0 {
-						log.Fatalln(eno)
-					}
-				}
-
-				// Get the new PID of the restarted process.
-				if err := proc.FindPid(); err != nil {
-					log.Fatalln(err)
-				}
-
-				restarted <- struct{}{}
+				must(proc.StartTty(ttyFile.Fd(), restarted))
 			} else {
-				// Create a new command to start the process with.
-				c := exec.Command(proc.Cmd, proc.Args...)
-				c.Stdin = os.Stdin
-				c.Stdout = os.Stdout
-				c.Stderr = os.Stderr
-
-				if proc.InTty() {
-					// Start the process in a different process group if detach is set to true.
-					c.SysProcAttr = &syscall.SysProcAttr{Setpgid: *detach}
-				} else {
-					// If process didn't start in a tty, don't run it as this tty.
-					c.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-				}
-
-				// Start the command.
-				must(c.Start())
-
-				restarted <- struct{}{}
-
-				// Wait for the command to finish.
-				must(c.Wait())
+				must(proc.Start(*detach, restarted))
 			}
 
 			// Set running back to 0 so the proces signal can be re-sent again.
