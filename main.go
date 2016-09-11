@@ -49,11 +49,20 @@ func main() {
 	// Check initial heartbeat.
 	must(proc.HealthCheck())
 
-	ttyFile, err := proc.OpenTty()
-	if err != nil && err == os.ErrPermission {
-		fmt.Println("start gobeat with sudo to restart application in correct tty")
+	// Make sure gobeat is running as sudo if user wants to restart process in a tty.
+	var ttyFile *os.File
+	if proc.InTty() && *detach {
+		if os.Getgid() != 0 || os.Getuid() != 0 {
+			log.Fatalln("gobeat needs sudo to restart process in it's tty" +
+				"(use -detach=false to restart with gobeat's process)")
+		} else {
+			ttyFile, err := proc.OpenTty()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			defer ttyFile.Close()
+		}
 	}
-	defer ttyFile.Close()
 
 	// Log the process's information
 	fmt.Print(proc)
@@ -111,9 +120,7 @@ func main() {
 			// If process was running in a tty instance, detach is set to
 			// true and the user is sudo, send the command using IOCTL with
 			// TIOCSTI system calls to the correct tty.
-			if proc.InTty() &&
-				(os.Getgid() == 0 && os.Getuid() == 0) &&
-				*detach {
+			if proc.InTty() && *detach {
 				// Append a new line character to the full command so the command
 				// actually executes.
 				fullCommandNL := proc.FullCommand() + "\n"
