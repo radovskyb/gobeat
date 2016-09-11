@@ -102,6 +102,10 @@ func FindByName(name string) (*Process, error) {
 	return FindByPid(pid)
 }
 
+func (p Process) FullCommand() string {
+	return p.Cmd + " " + strings.Join(p.Args, " ")
+}
+
 func FindByPid(pid int) (*Process, error) {
 	process := new(Process)
 

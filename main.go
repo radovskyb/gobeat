@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -128,11 +126,11 @@ func main() {
 			if proc.Tty != "??" {
 				// Append a new line character to the full command so the command
 				// actually executes.
-				pidCommandEqNL := proc.Cmd + " " + strings.Join(proc.Args, " ") + "\n"
+				fullCommandNL := proc.FullCommand() + "\n"
 
 				// Write each byte from pidCommandEq to the tty instance.
 				var eno syscall.Errno
-				for _, b := range pidCommandEqNL {
+				for _, b := range fullCommandNL {
 					_, _, eno = syscall.Syscall(syscall.SYS_IOCTL,
 						ttyFile.Fd(),
 						syscall.TIOCSTI,
@@ -198,42 +196,6 @@ func main() {
 		// Sleep for the specified interval.
 		time.Sleep(time.Millisecond * time.Duration(*interval))
 	}
-}
-
-// getPidByName takes in a name and finds the pid associated with it.
-func getPidByName(procName string) (string, error) {
-	// ps -o | grep -i "name" | grep -v grep
-	psOutput, err := exec.Command("ps", "-e").Output()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	lowercaseOutput := bytes.ToLower(psOutput)
-
-	var names []string
-	scanner := bufio.NewScanner(bytes.NewReader(lowercaseOutput))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, procName) {
-			names = append(names, line)
-		}
-	}
-	must(scanner.Err())
-
-	// Display a list of all the found names.
-	for i, name := range names {
-		fmt.Printf("%d: %s\n", i, name)
-	}
-
-	procNumber := -1
-	fmt.Println("\nWhich number above represents the correct process (enter the number):")
-	fmt.Scanf("%d", &procNumber)
-
-	if procNumber < 0 {
-		return "", fmt.Errorf("please enter a valid number")
-	}
-
-	// Return the pid string.
-	return strings.TrimSpace(strings.Split(names[procNumber], " ")[0]), nil
 }
 
 func must(err error) {
