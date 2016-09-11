@@ -56,7 +56,7 @@ func main() {
 			log.Fatalln("gobeat needs sudo to restart process in it's tty" +
 				"(use -detach=false to restart with gobeat's process)")
 		} else {
-			ttyFile, err := proc.OpenTty()
+			ttyFile, err = proc.OpenTty()
 			if err != nil {
 				log.Fatalln(err)
 			}
