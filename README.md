@@ -2,7 +2,7 @@
 
 ##### So far only tested on MacOS
 
-UPDATE: Replaced all greps and awks with pure Go.
+UPDATE: gobeat's process functionality has been moved to it's own package here: https://github.com/radovskyb/process.
 
 `gobeat` is a health check monitor, command automation tool and process restarter, for any process found by name or pid.
 
