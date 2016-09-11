@@ -106,7 +106,7 @@ func main() {
 			}
 
 			// Change into the working directory where the process was called.
-			if err := os.Chdir(proc.Cwd); err != nil {
+			if err := proc.Chdir(); err != nil {
 				// If the folder DOES exist, report the error, otherwise,
 				// just run the process from the current folder if possible.
 				if os.IsExist(err) {
