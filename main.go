@@ -38,7 +38,11 @@ func main() {
 			log.Fatalln(err)
 		}
 	} else {
-		proc, err = process.FindByName(*procName)
+		// Find the process by name. i
+		//
+		// Output the possible names list to os.Stdout and scan the number
+		// to use to choose the correct name from os.Stdin.
+		proc, err = process.FindByName(os.Stdout, os.Stdin, *procName)
 		if err != nil {
 			log.Fatalln(err)
 		}
