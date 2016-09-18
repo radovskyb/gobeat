@@ -38,7 +38,7 @@ func main() {
 			log.Fatalln(err)
 		}
 	} else {
-		// Find the process by name. i
+		// Find the process by name.
 		//
 		// Output the possible names list to os.Stdout and scan the number
 		// to use to choose the correct name from os.Stdin.
