@@ -32,7 +32,7 @@ continue running even after `gobeat` is shut down.
 
 `gobeat` continues to check the newly created processes even after it has already been restarted by taking the `pid` from the new process and monitoring that process instead, keeping all of the same flags intact.
 
-`gobeat` uses the unix commands `lsof` and `ps` for finding process information since `/proc/` is not available on Mac OS.
+`gobeat` uses the unix commands `lsof` and `ps` for finding process information since `/proc/` is not available on MacOS.
 
 Example workflow: `sudo gobeat -pid=1234 -cmd="go run sendemail.go"`
 1. Run with `sudo` so `gobeat` will restart the server in the same terminal tty that it originated in. [`sudo`]
