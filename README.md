@@ -6,6 +6,10 @@
 
 `gobeat` is a health check monitor, command automation tool and a process restarter, for any process found by name or pid.
 
+### Installation:
+
+1. `go get github.com/radovskyb/gobeat`
+
 #### Example usage: 
 `gobeat -pid=1234 -cmd="go run myscript.go"` where `1234` is the `pid` of a process that needs to be monitored and `myscript.go` is a `Go` file to be executed any time the process from `pid` `1234` is terminated or restarted.
 
