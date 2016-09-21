@@ -35,6 +35,7 @@ continue running even after `gobeat` is shut down.
 `gobeat` uses the unix commands `lsof` and `ps` for finding process information since `/proc/` is not available on MacOS.
 
 Example workflow: `sudo gobeat -pid=1234 -cmd="go run sendemail.go"`
+
 1. Run with `sudo` so `gobeat` will restart the server in the same terminal tty that it originated in. [`sudo`]
 2. Point `gobeat` to the process of the running server you want `gobeat` to watch. [`gobeat -pid=1234`]
 3. Set the `cmd` flag to run a Go file that will send an email notifying you that the server was restarted. [`-cmd="go run sendemail.go"`]
