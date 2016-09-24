@@ -17,14 +17,14 @@
 
 #### Description:
 
-`gobeat` is started by passing it a minimum flag that it requires to work, either a `pid` (process id) which can be found using `ps` in the terminal, or a name flag which finds and lists all names from the `ps` command, where the correct process name is chosen from the list.
+`gobeat` is started by passing it a minimum flag that it requires to work, either a `pid` (process id) which can be found using `ps` in the terminal, or a `name` flag which finds and lists all names from the `ps` command, where the correct process name is chosen from the list.
 
 Once running, `gobeat` uses the `interval` flag (100 milliseconds is the default), to regularly health check the process by sending it a unix 0 signal. 
 
 If the process has shutdown or is non-respondant and the `restart` flag is set to true, which is the default, `gobeat` automatically restarts the process.
 When the process that needs to be restarted was instantiated in a terminal window for example, `/dev/ttys001`, `gobeat` automatically restarts
-the process in terminal tty  that it originated in. `gobeat` must be started with `sudo` to restart an application
-in the correct `tty` window, otherwise it will just restart the process as a normal application, attached to `gobeats` process.
+the process in the terminal tty that it originated in. `gobeat` must be started with `sudo` to restart an application
+in the correct `tty` window, otherwise it will just restart the process as a normal application, attached to `gobeat`'s process.
 
 For processes not started from a terminal, for example, such as a text editor like `Sublime Text`,
 `gobeat` will simply restart the application. The `detach` flag specifes whether or not a regular application 
