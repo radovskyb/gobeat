@@ -9,12 +9,10 @@ go get -u github.com/radovskyb/gobeat
 
 # Usage
 
--
 ```shell 
 gobeat -pid=1234 -cmd="go run myscript.go"
 ```
 
--
 ```shell 
 gobeat -name="subl" -cmd="./mybashscript"
 ```
