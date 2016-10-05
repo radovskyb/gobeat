@@ -38,7 +38,7 @@ sudo gobeat -pid=1234 -cmd="go run sendemail.go"
 
 Once running, `gobeat` regularly health checks the running process.
 
-If the process has shutdown or is non-respondant and the `restart` flag is set to true, which is the default, `gobeat` automatically restarts the process.
+If the process has been shut down and the `restart` flag is set to true, which is the default, `gobeat` automatically restarts the process.
 
 When the process that needs to be restarted was instantiated in a terminal window, for example, `/dev/ttys001`, `gobeat` automatically restarts
 the process in the `tty` that it originated in (requires sudo). 
