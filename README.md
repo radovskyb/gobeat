@@ -46,9 +46,8 @@ the process in the `tty` that it originated in (requires sudo).
 For processes not started in a terminal, `gobeat` will simply restart the application.
 
 The `detach` flag specifes whether or not an application that is restarted gets attached to `gobeat`'s process. 
-
 An `attached` process will be killed when `gobeat` is killed, whereas a `deatched` process will continue to run.
 
-`gobeat` also accepts a `cmd` flag, which takes in a command that is to be run anytime the process being followed is terminated or restarted.
+`gobeat` also accepts a `cmd` flag, which specifies a command to be run anytime the process being watched is killed or restarted.
 
 `gobeat` uses `lsof` and `ps` for finding process information since `/proc/` is not available on MacOS.
