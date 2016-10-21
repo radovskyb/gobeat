@@ -79,7 +79,7 @@ func main() {
 		for {
 			<-errch
 
-			// Set running to 1 so the proces signal isn't re-sent until the
+			// Set running to 1 so the process signal isn't re-sent until the
 			// of running cmd and/or restarting the specified process completes.
 			atomic.AddInt64(&running, 1)
 
@@ -129,7 +129,7 @@ func main() {
 				must(proc.Start(*detach, os.Stdin, os.Stdout, os.Stderr, restarted))
 			}
 
-			// Set running back to 0 so the proces signal can be re-sent again.
+			// Set running back to 0 so the process signal can be re-sent again.
 			atomic.AddInt64(&running, -1)
 		}
 	}()
