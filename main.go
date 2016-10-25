@@ -49,7 +49,9 @@ func main() {
 	}
 
 	// Check initial heartbeat.
-	must(proc.HealthCheck())
+	if err := proc.HealthCheck(); err != nil {
+		log.Fatalln(err)
+	}
 
 	// Make sure gobeat is running as sudo if user wants to restart process in a tty.
 	var ttyFile *os.File
@@ -95,13 +97,17 @@ func main() {
 				c.Stderr = os.Stderr
 
 				// Start the command.
-				must(c.Start())
+				if err := c.Start(); err != nil {
+					log.Fatalln(err)
+				}
 
 				// Print a running command message.
 				fmt.Printf("\n[Running command]: %s\n", *cmd)
 
 				// Wait for the command to finish.
-				must(c.Wait())
+				if err := c.Wait(); err != nil {
+					log.Fatalln(err)
+				}
 			}
 
 			// If restart is not set to true, exit cleanly.
@@ -124,9 +130,13 @@ func main() {
 			// true and the user is sudo, send the command using IOCTL with
 			// TIOCSTI system calls to the correct tty.
 			if proc.InTty() && *detach {
-				must(proc.StartTty(ttyFile.Fd(), restarted))
+				if err := proc.StartTty(ttyFile.Fd(), restarted); err != nil {
+					log.Fatalln(err)
+				}
 			} else {
-				must(proc.Start(*detach, os.Stdin, os.Stdout, os.Stderr, restarted))
+				if err := proc.Start(*detach, os.Stdin, os.Stdout, os.Stderr, restarted); err != nil {
+					log.Fatalln(err)
+				}
 			}
 
 			// Set running back to 0 so the process signal can be re-sent again.
@@ -157,11 +167,5 @@ func main() {
 
 		// Sleep for the specified interval.
 		time.Sleep(time.Millisecond * time.Duration(*interval))
-	}
-}
-
-func must(err error) {
-	if err != nil {
-		log.Fatalln(err)
 	}
 }
